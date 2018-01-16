@@ -103,16 +103,18 @@ void Controller::run()
   }
 
   int32_t dt_us = (RF_.estimator_.state().timestamp_us - prev_time_us_);
+  prev_time_us_ = RF_.estimator_.state().timestamp_us; //MATT Here we added the prev_time update
+
   if ( dt_us < 0 )
   {
     RF_.state_manager_.set_error(StateManager::ERROR_TIME_GOING_BACKWARDS);
-    prev_time_us_ = RF_.estimator_.state().timestamp_us;
+
     return;
   }
 
   // Check if integrators should be updated
   //! @todo better way to figure out if throttle is high
-  bool update_integrators = (RF_.state_manager_.state().armed) && (RF_.command_manager_.combined_control().F.value > 0.1f) && dt_us < 100;
+  bool update_integrators = (RF_.state_manager_.state().armed) && (RF_.command_manager_.combined_control().F.value > 0.1f) && (dt_us > 100); //MATT here there was a dt_us < 100, which meant update integrators only if your dt is null, which seemed weird to us whereas it makes sense here: update if your delta is large enough.
 
   // Run the PID loops
   turbomath::Vector pid_output = run_pid_loops(dt_us, RF_.estimator_.state(), RF_.command_manager_.combined_control(), update_integrators);
@@ -179,7 +181,7 @@ turbomath::Vector Controller::run_pid_loops(uint32_t dt_us, const Estimator::Sta
   // Based on the control types coming from the command manager, run the appropriate PID loops
   turbomath::Vector out;
 
-  float dt = dt_us;
+  float dt = dt_us*0.000001f; //MATT here we scaled dt to seconds, cause if you don't your integrators and derivative parts are way too high, and I'm not sure tau in the low pass filter makes a lot of sense.
 
   // ROLL
   if (command.x.type == RATE)
